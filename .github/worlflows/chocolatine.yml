@@ -1,0 +1,93 @@
+name: chocolatine
+on:
+  push:
+    branches:
+      - main
+    branches-ignore:
+      - "ga-ignore- *"
+  pull_request:
+    branches-ignore:
+      - "ga-ignore-*"
+
+env:
+  MIRROR_URL: "git@github.com:EpitechPromo2028/B-DOP-200-LYN-2-1-chocolatine-ossan.msoili.git"
+  EXECUTABLE: "chocolatine"
+
+jobs:
+  checking_coding_style:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/epitech/coding-style-checker:latest
+    steps:
+      - name: Checkout Coding Style checker
+        uses: actions/checkout@v4
+        run: |
+          check.sh $(pwd) $(pwd)
+          while read Line; \
+          do \
+          ARG1=$(echo $Line | cut -d: -f1); \
+          ARG2=$(echo $Line | cut -d: -f2); \
+          ARG3=$(echo $Line | cut -d: -f3); \
+          ARG4=$(echo $Line | cut -d: -f4); \
+          if [[ $ARG1 != *Makefile* ]]; then \
+            echo "::error file=$ARG1, line=$ARG2:: $ARG3 $ARG4"; \
+          fi \
+          done < coding-style-reports.log
+          if [ -s coding-style-reports.log ]; then
+            exit 1
+          fi
+
+  check_program_compilation:
+    runs-on: ubuntu-latest
+    container:
+      image: epitechcontent/epitest-docker:latest
+    steps:
+      - name: Compile
+        uses: actions/checkout@v4
+        run: make
+        timeout-minutes: 2
+      - name: Clean files
+        run: make clean
+      - name: Check exe
+        run: |
+          IFS=','
+          for value in $EXECUTABLES; do
+            if [ -e $value ]; then
+              exit 0
+            else
+              exit 1
+            fi
+          done
+
+  run_tests:
+    runs-on: ubuntu-latest
+    container:
+      image: epitechcontent/epitest-docker
+    steps:
+      - name: Compile
+        uses: actions/checkout@v4
+        run: make
+        timeout-minutes: 2
+      - name: Clean files
+        run: make clean
+      - name: Check exe
+        run: |
+          IFS=','
+          for value in $EXECUTABLES; do
+            if [ -e $value ]; then
+              exit 0
+            else
+              exit 1
+            fi
+          done
+
+  push_to_mirror:
+    needs: [check_program_compilation]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ssh_private_key: ${{ secrets.GIT_SSH_PRIVATE_KEY }}
+          mirror_repository_url: ${{ env.MIRROR_URL }}
+          args: '--mirror'
